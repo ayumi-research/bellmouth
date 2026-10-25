@@ -1,0 +1,8 @@
+{
+  "type": "org.matrix.msc3401.call.member",
+  "sender": "@other:hs.example",
+  "content": {},
+  "room_id": "!BSUomZfJHOyuaMzXoo:hs.example",
+  "state_key": "_@other:hs.example_DEVICEBBB222_m.call",
+  "origin_server_ts": 1792871067643
+}

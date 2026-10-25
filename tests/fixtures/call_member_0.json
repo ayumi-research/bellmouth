@@ -1,0 +1,28 @@
+{
+  "type": "org.matrix.msc3401.call.member",
+  "sender": "@zoltan:matrix.ayumi.town",
+  "content": {
+    "scope": "m.room",
+    "call_id": "",
+    "expires": 14400000,
+    "device_id": "TRNBXOZARK",
+    "created_ts": 1792870989053,
+    "application": "m.call",
+    "focus_active": {
+      "type": "livekit",
+      "focus_selection": "multi_sfu"
+    },
+    "membershipID": "@zoltan:matrix.ayumi.town:TRNBXOZARK",
+    "m.call.intent": "audio",
+    "foci_preferred": [
+      {
+        "type": "livekit",
+        "livekit_alias": "!BSUomZfJHOyuaMzXoo:matrix.ayumi.town",
+        "livekit_service_url": "https://matrix.ayumi.town/livekit-jwt"
+      }
+    ]
+  },
+  "room_id": "!BSUomZfJHOyuaMzXoo:matrix.ayumi.town",
+  "state_key": "_@zoltan:matrix.ayumi.town_TRNBXOZARK_m.call",
+  "origin_server_ts": 1792871043066
+}

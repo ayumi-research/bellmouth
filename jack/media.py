@@ -51,12 +51,18 @@ class CallMedia:
     def on_user_audio(self, cb: Callable) -> None:
         self._on_user_audio = cb
 
-    receiver = None  # MediaKeyReceiver, set by watcher for E2EE key installs
+    receiver: "object | None" = None  # MediaKeyReceiver, set by watcher for E2EE key installs
+    expected_remote_identity: "str | None" = None  # only accept audio from the authorized caller
 
     async def connect(self, room_options=None) -> None:
         @self.room.on("track_subscribed")
         def _on_track(track: rtc.Track, pub: rtc.RemoteTrackPublication, participant: rtc.RemoteParticipant):
             if track.kind == rtc.TrackKind.KIND_AUDIO:
+                expected = getattr(self, "expected_remote_identity", None)
+                if expected and participant.identity != expected:
+                    log.warning("audio from NON-caller participant %s ignored (expected %s)",
+                                participant.identity[:40], expected[:40])
+                    return
                 self._remote_subs += 1
                 log.info("remote audio subscribed from %s", participant.identity)
                 self._tasks.append(asyncio.ensure_future(self._read_remote_audio(track)))
@@ -293,11 +299,30 @@ class CallMedia:
 
     @staticmethod
     def _dump_utterance(pcm16: bytes, rate: int) -> str | None:
-        import array as _array
+        """Diagnostic utterance dump — OPT-IN (JACK_RECORD_UTTERANCES=1).
+
+        Private tempfile (0600), not predictable /tmp names; retention sweeps
+        files older than JACK_RETENTION seconds (default 3600, 0 = keep).
+        """
+        import os as _os
+        import tempfile as _tempfile
         import time as _time
+        if _os.environ.get("JACK_RECORD_UTTERANCES", "0") not in ("1", "true", "yes"):
+            return None
+        import array as _array
         try:
-            path = "/tmp/jack_utt_%d.wav" % int(_time.time())
-            with open(path, "wb") as f:
+            fd, path = _tempfile.mkstemp(prefix="jack_utt_", suffix=".wav")
+            retention = int(_os.environ.get("JACK_RETENTION", "3600"))
+            if retention > 0:
+                now = _time.time()
+                import glob as _glob
+                for old in _glob.glob(_tempfile.gettempdir() + "/jack_utt_*.wav"):
+                    try:
+                        if now - _os.path.getmtime(old) > retention:
+                            _os.unlink(old)
+                    except OSError:
+                        pass
+            with _os.fdopen(fd, "wb") as f:
                 f.write(CallMedia._pcm_to_wav_bytes(_array.array("h", pcm16), rate))
             return path
         except Exception:

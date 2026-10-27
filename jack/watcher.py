@@ -87,11 +87,15 @@ class CallWatcher:
         self._seen_events: set = set()  # (room_id, event_id) dedup
         self._room_members: dict = {}   # room_id -> set of joined MXIDs (from m.room.member)
         self._caller_left = False       # set when active caller publishes an empty membership
+        self.receiver = None  # active per-call MediaKeyReceiver (swapped each call)
+        self.crypto_ok = False  # True only after successful crypto init + whoami
         self.start_ms = int(time.time() * 1000)
 
-    # ---- filtering (§6.1: allowlist before answer, default documented) ----
+    # ---- filtering (§6.1: allowlist before answer, default DENY) ----
     def _allowed(self, room_id: str, sender: str) -> bool:
-        if self.cfg["allowlist_callers"] and sender not in self.cfg["allowlist_callers"]:
+        if not self.cfg["allowlist_callers"]:
+            return False  # unconfigured = answer nobody (see SECURITY.md)
+        if sender not in self.cfg["allowlist_callers"]:
             return False
         if self.cfg["allowlist_rooms"] and room_id not in self.cfg["allowlist_rooms"]:
             return False
@@ -173,12 +177,14 @@ class CallWatcher:
         outbound = e2ee_send.OutboundKeys(
             self.client, self.cfg["user_id"], self.cfg["device_id"])
         outbound.generate()
+        # fresh receiver per call: keys and bindings never survive a hangup
+        self.receiver = e2ee_keys.MediaKeyReceiver(st.room_id)
+        # the caller's livekit identity (from their membership state) — audio
+        # from any OTHER participant is refused
+        caller_dev = getattr(self, "active_caller_device", "")
+        st.media.expected_remote_identity = f"{st.caller}:{caller_dev}" if caller_dev else st.caller
         try:
             await st.media.connect(room_options=e2ee_keys.e2ee_room_options(encrypt_outbound=encrypt))
-            if self.receiver is not None:
-                self.receiver.matrix_room_id = st.room_id
-                st.media.receiver = self.receiver
-                self.receiver.bind_room(st.media.room)
             if encrypt:
                 # our key under our ACTUAL connected identity (may differ from
                 # the JWT string) BEFORE the first published frame
@@ -186,19 +192,31 @@ class CallWatcher:
                 if actual != identity:
                     log.info("local participant identity: %s", actual[:40])
                 if not outbound.install_own(st.media.room, actual):
-                    log.warning("outbound key install failed; publishing PLAINTEXT")
+                    raise RuntimeError("outbound E2EE key install failed — refusing to publish plaintext")
+            else:
+                self.receiver.matrix_room_id = st.room_id
+                st.media.receiver = self.receiver
+                self.receiver.bind_room(st.media.room)
             await st.media.publish_dummy_video()
             await st.media.publish_audio_track()
             if encrypt:
                 # installing the key is not selecting it — pin the sender index
-                outbound.select_index(st.media.room,
-                                      getattr(st.media.room.local_participant, "identity", identity))
+                if not outbound.select_index(st.media.room,
+                                             getattr(st.media.room.local_participant, "identity", identity)):
+                    raise RuntimeError("sender cryptor index pin failed — refusing plaintext audio")
                 try:
                     members = list(self._room_members.get(st.room_id, set())) or \
                         list((await self._fetch_members_raw(st.room_id)))
-                    await outbound.distribute(st.room_id, members)
+                    sent = await outbound.distribute(st.room_id, members)
                 except Exception:
-                    log.exception("outbound key distribution failed (caller may hear silence)")
+                    sent = 0
+                    log.exception("outbound key distribution failed")
+                if sent == 0:
+                    raise RuntimeError("outbound key reached zero devices — caller could not decrypt; aborting")
+            else:
+                if self.receiver is not None:
+                    st.media.receiver = self.receiver
+                    self.receiver.bind_room(st.media.room)
             await self._publish_membership(st.room_id)  # the actual "answer" signal for Element X
 
             async def handle_utterance(pcm: bytes):
@@ -207,7 +225,8 @@ class CallWatcher:
                 try:
                     rate = st.media._remote_rate or 48000
                     text = await stt.transcribe(pcm, src_rate=rate)
-                    log.info("caller said: %r", text[:120])
+                    log.info("caller utterance: %d chars", len(text or ""))
+                    log.debug("caller said: %r", (text or "")[:200])
                     if text:
                         await st.adapter.on_transcript(text)
                 except Exception:
@@ -304,6 +323,10 @@ class CallWatcher:
         if st.joined and st.application == "m.call" and st.sender != self.cfg["user_id"]:
             if self.active is not None:
                 return  # polite decline policy (§4.1 concurrency)
+            if not self.crypto_ok:
+                log.error("crypto init failed earlier — refusing call from %s (no E2EE, no session)",
+                          st.sender[:20])
+                return
             if not self._allowed(st.room_id, st.sender):
                 log.info("caller not allowlisted: %s...", st.sender[:16])
                 return
@@ -333,14 +356,28 @@ class CallWatcher:
     async def _crypto_init(self) -> None:
         for noisy in ("nio.rooms", "nio.client", "nio.crypto.log", "peewee"):
             logging.getLogger(noisy).setLevel(logging.WARNING)
-        """Restore olm device for @mei_voice and upload keys once."""
+        """Restore olm device, verify token identity, upload keys once."""
         try:
+            import pathlib as _pathlib
+            store = _pathlib.Path(os.environ.get("JACK_CRYPTO_STORE", "/opt/jack/crypto_store"))
+            store.mkdir(parents=True, exist_ok=True, mode=0o700)
             self.client.restore_login(
                 self.cfg["user_id"], self.cfg["device_id"], self.cfg["access_token"])
             loaded = self.client.load_store()  # sync in nio 0.26
             log.info("crypto store loaded=%s device=%s", bool(loaded), self.cfg["device_id"])
-            self.receiver = e2ee_keys.MediaKeyReceiver(self.cfg.get("matrix_room_id", ""))
-            e2ee_keys.make_olm_hook(self.client, self.receiver)
+            # token/device identity check: a mismatched token silently fails key upload
+            import aiohttp as _aio, json as _json
+            async with _aio.ClientSession() as s:
+                async with s.get(
+                        f"{self.cfg['homeserver'].rstrip('/')}/_matrix/client/v3/account/whoami",
+                        headers={"Authorization": f"Bearer {self.cfg['access_token']}"}) as r:
+                    who = await r.json()
+            if who.get("user_id") != self.cfg["user_id"] or who.get("device_id") != self.cfg["device_id"]:
+                log.error("whoami mismatch: token is %s/%s but config says %s/%s — E2EE will not work",
+                          who.get("user_id"), who.get("device_id"),
+                          self.cfg["user_id"], self.cfg["device_id"])
+                return  # crypto_ok stays False -> calls refused
+            e2ee_keys.make_olm_hook(self.client, self)  # holder: per-call self.receiver
             try:
                 try:
                     await self.client.keys_query()  # raises if nothing new
@@ -379,9 +416,13 @@ class CallWatcher:
                     log.info("own device keys: none visible yet")
             except Exception as e:
                 if "No key upload needed" not in str(e):
-                    log.exception("key upload failed")
+                    log.exception("key upload failed — refusing calls (no OTKs = no inbound E2EE)")
+                    return  # crypto_ok stays False
+            self.crypto_ok = True
+            log.info("crypto init complete — calls enabled (E2EE ready)")
         except Exception:
-            log.exception("crypto init failed (E2EE media will stay encrypted)")
+            self.crypto_ok = False
+            log.exception("crypto init failed — calls will be REFUSED until fixed")
 
     async def run(self) -> None:
         await self._crypto_init()
@@ -435,8 +476,8 @@ async def amain() -> None:
     cfg = load_config()
     w = CallWatcher(cfg)
     if not cfg["allowlist_callers"]:
-        log.warning("JACK_ALLOWED_USERS empty: ANY 1:1 DM caller can spawn an agent "
-                    "session. Set it (comma-separated full user ids) to pin access.")
+        log.error("JACK_ALLOWED_USERS not set — the jack will answer NOBODY "
+                  "(default-deny). Set it to comma-separated full user ids.")
     # auto-accept invites ONLY from allowlisted users (or all when no allowlist):
     # a stranger's invite must not become a room the agent joins + speaks in.
     def on_invite(room, event):  # noqa

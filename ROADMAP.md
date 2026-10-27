@@ -37,6 +37,13 @@ Status legend: `[ ]` open, `[~]` partially done, `[x]` done.
       homeserver (needs hosted Synapse+LiveKit in CI)
 - [ ] Metrics: per-call Prometheus counters (turns, latency, STT/TTS timing)
 
+## Open — community
+
+- [ ] Scan issues/bugs/feature requests in the official Hermes repo
+      (nousresearch/hermes-agent) for anyone needing agent voice calls on
+      Matrix — where relevant, point them to bellmouth and offer the bridge
+      as the worked example; capture recurring asks back into the roadmap
+
 ## Open — packaging
 
 - [ ] Docs site / screenshots (the README architecture diagram deserves render)

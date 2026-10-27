@@ -4,7 +4,7 @@ Pure logic — no network. Decides whether a call turn should ALSO run on the
 full Hermes agent (via the Mac bridge) and extracts the task payload.
 
 Two detection layers (in order):
-1. Self-tag: the GLM brain ends a task-intent turn with ``[TASK: ...]``
+1. Self-tag: the small brain ends a task-intent turn with ``[TASK: ...]``
    (injected via the system-prompt suffix). Zero extra latency, brain-owned.
 2. Heuristic fallback: imperative-verb patterns on the caller's transcript,
    for when the brain forgets to tag. Conservative — false positives cost a
@@ -43,7 +43,7 @@ _HEURISTIC_RE = re.compile("|".join(_HEURISTIC_PATTERNS), re.IGNORECASE)
 
 
 def extract_task(reply: str) -> tuple[str | None, str]:
-    """Split a GLM reply into (task, spoken_prefix).
+    """Split a brain reply into (task, spoken_prefix).
 
     Returns (None, reply-unchanged) when no tag is present. The tag is
     stripped from the spoken text either way; leading/trailing whitespace
@@ -67,13 +67,13 @@ def build_context_envelope(history: list[dict], turns: int = 6) -> str:
 
     ``history`` is the adapter's message list (system first, then user/
     assistant alternation). The system prompt is excluded; only the tail is
-    kept so the envelope stays small. Output is plain "Caller:"/"Mei:" lines.
+    kept so the envelope stays small. Output is plain "Caller:"/"Agent:" lines.
     """
     msgs = [m for m in history if m.get("role") in ("user", "assistant")]
     tail = msgs[-turns:]
     lines = []
     for m in tail:
-        who = "Caller" if m["role"] == "user" else "Mei"
+        who = "Caller" if m["role"] == "user" else "Agent"
         content = re.sub(r"\[TASK\s*[:：].*?\]", "", m.get("content", ""), flags=re.DOTALL).strip()
         if content:
             lines.append(f"{who}: {content}")
@@ -83,7 +83,7 @@ def build_context_envelope(history: list[dict], turns: int = 6) -> str:
 def build_task_prompt(task: str, envelope: str, caller: str = "the user") -> str:
     """Compose the one-shot Hermes query for a call task."""
     parts = [
-        "You are Hermes, briefly stepping in for Mei on a live phone call with "
+        "You are the agent's full brain, briefly stepping in on a live phone call with "
         f"{caller}. The caller asked for something that needs REAL tools on this "
         "Mac — do it now, then answer for speech.",
         "",

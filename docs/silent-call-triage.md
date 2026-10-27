@@ -35,14 +35,14 @@ enough speech (noise only), dropped' = threshold/speech-count tuning, not crypto
 ## Step 5 — were utterances captured but never transcribed?
 `ls -la /tmp/jack_utt_*.wav` — dumps newer than the failed call with NO matching `caller said`
 line = the STT layer, not the audio path. stt.py picks its backend from `JACK_STT_BACKEND` and
-DEFAULTS to `whisper_cpp`, whose server is a husk on the sidecar — every transcript silently
+DEFAULTS to `whisper_cpp`, whose server is not running on the phone host — every transcript silently
 returns empty. Fix: `JACK_STT_BACKEND=faster` in /opt/jack/.env. Verify offline first:
 `cd /opt/jack && JACK_STT_BACKEND=faster .venv/bin/python -c` transcribing a fresh dump via
 `st._transcribe_sync(raw[44:], src_rate=48000)` — a real transcript proves the path before any
 restart.
 
 ## Step 6 — transcript but no spoken reply?
-Check the adapter chain in order: GLM endpoint RTT from the sidecar (`curl` the chat completion,
+Check the adapter chain in order: chat-endpoint RTT from the phone host (`curl` the chat completion,
 watch `content` vs `reasoning_content` and the max_tokens budget), task-bridge health if
 `JACK_TASK_BRIDGE_URL` is set (`Connection refused` = bridge down on the Mac — chat turns still
 work, task turns fail honest), then the TTS pump (`pumped N bytes -> N audio frames` lines).

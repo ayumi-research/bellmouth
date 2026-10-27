@@ -136,7 +136,7 @@ class CallMedia:
     async def speak(self, text: str, voice: str | None = None) -> None:
         """text -> TTS wav -> PCM16 48k -> tts queue (blocking TTS in thread)."""
         import aiohttp, tempfile, os as _os
-        voice = voice or _os.environ.get("JACK_TTS_VOICE", "emma")
+        voice = voice or _os.environ.get("JACK_TTS_VOICE", "default")
         body = {"input": text, "voice": voice, "response_format": "wav"}
         url = _os.environ.get("JACK_TTS_URL", "http://localhost:8003/v1/audio/speech")
         async with aiohttp.ClientSession() as sess:

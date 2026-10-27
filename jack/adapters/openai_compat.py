@@ -1,8 +1,8 @@
 """OpenAI-compatible chat-completions adapter.
 
 Impl #2 of the contract: any /v1/chat/completions endpoint. This is the slot
-where the sidecar fork-brain plugs in (ollama at http://sidecar:11434/v1,
-model NVIDIA-Nemotron-3.5-Bolt-E4B-4GB:Q4_K_M, "think": false MANDATORY —
+plugs into ANY OpenAI-compatible endpoint (ollama, vLLM, llama.cpp server,
+OpenAI itself). Small local models recommended for call latency.
 its native reasoning burns the token budget before content, see the
 bolt-e4b-sidecar skill).
 
@@ -37,7 +37,7 @@ DEFAULT_SYSTEM_PROMPT = (
 )
 
 # Adapter v2 (Door 3): when the caller asks something that needs REAL tools
-# (time/date on the Mac, files, email, lookups), Mei answers conversationally
+# (time/date on the host, files, email, lookups), the small brain answers conversationally
 # AND tags the turn so the full Hermes agent runs it on the Mac. Byte-stable
 # suffix — never mutate it per turn (vLLM prefix cache).
 TASK_TAG_SUFFIX = (
@@ -63,22 +63,23 @@ class OpenAICompatAdapter:
         self.model = model or os.environ.get("OPENAI_COMPAT_MODEL", "")
         self.api_key = api_key or os.environ.get("OPENAI_COMPAT_API_KEY", "no-key-required")
         self.system_prompt = system_prompt or os.environ.get("OPENAI_COMPAT_SYSTEM", DEFAULT_SYSTEM_PROMPT)
-        # Bolt E4B: think:false is mandatory (reasoning eats num_predict).
+        # Some models burn the token budget on thinking; disable by default.
         if think is None:
             think = os.environ.get("OPENAI_COMPAT_THINK", "false").lower() == "true"
         self.think = think
-        # Reasoning models (GLM on vLLM) burn tokens on reasoning_content before
-        # content — too small a budget makes content null (silence on the call).
+        # Reasoning models burn tokens on reasoning_content before content —
+        # too small a budget makes content null (silence on the call).
         if max_tokens is None:
             max_tokens = int(os.environ.get("OPENAI_COMPAT_MAX_TOKENS", "500"))
         self.max_tokens = max(500, max_tokens)
         self.max_history = max_history
         self.task_bridge = bool(os.environ.get("JACK_TASK_BRIDGE_URL"))
-        # JACK_ROUTE=hermes: EVERY turn rides the full Hermes brain (no D1
-        # picker, no [TASK:] tagging — Z's verdict 2026-10-27: Door 1 is
-        # soulless, Door 2 latency is fine). GLM stays as bridge-down
-        # fallback only. Default "hybrid" keeps the v2 picker behavior.
-        self.route = os.environ.get("JACK_ROUTE", "hybrid").strip().lower()
+        # JACK_ROUTE=bridge: EVERY turn rides the full agent brain via the
+        # bridge (no picker, no [TASK:] tagging). The small brain stays as
+        # bridge-down fallback only. Default "hybrid" picks per turn.
+        self.route = {"bridge": "bridge", "hermes": "bridge"}.get(
+            os.environ.get("JACK_ROUTE", "hybrid").strip().lower(),
+            os.environ.get("JACK_ROUTE", "hybrid").strip().lower())
         self._session: CallSession | None = None
         self._history: list = [{
             "role": "system",
@@ -97,8 +98,8 @@ class OpenAICompatAdapter:
         headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
         body: dict = {"model": self.model, "messages": messages, "max_tokens": self.max_tokens}
         if self.think is False:
-            body["think"] = False  # ollama/nemotron native; harmless elsewhere
-            # vLLM-served reasoning models (GLM): disable thinking via the chat
+            body["think"] = False  # ollama-style flag; ignored elsewhere
+            # vLLM-served reasoning models: disable thinking via the chat
             # template, else reasoning_content eats the budget / adds latency.
             body["chat_template_kwargs"] = {"enable_thinking": False}
             body["num_predict"] = self.max_tokens  # ollama's alias for max_tokens
@@ -122,7 +123,7 @@ class OpenAICompatAdapter:
         if len(self._history) > self.max_history + 1:
             self._history = [self._history[0]] + self._history[-(self.max_history):]
         if self.route == "hermes" and self.task_bridge:
-            # All-Hermes mode: no GLM turn at all, no picker — the full brain
+            # bridge mode: no small-brain turn at all, no picker — the full brain
             # answers every turn (async; result queued to TTS when it lands).
             t = asyncio.ensure_future(self._run_task_turn(text))
             self._pending_tasks.add(t)
@@ -146,7 +147,7 @@ class OpenAICompatAdapter:
     def _maybe_dispatch_task(self, user_text: str, reply: str) -> None:
         """Door 3: route a task turn to the full Hermes agent on the Mac.
 
-        Layer 1: GLM self-tag [TASK: ...] in its reply. Layer 2: imperative
+        Layer 1: the brain self-tags [TASK: ...] in its reply. Layer 2: imperative
         heuristic on the caller's text (brain forgot to tag). The bridge call
         runs in a background task — the conversational reply is already
         speaking, the verified result is queued when it lands.
@@ -174,7 +175,7 @@ class OpenAICompatAdapter:
         except task_client.TaskBridgeError as e:
             self._flagged = True
             bridge_failed = True
-            log.warning("task bridge failed (%s); falling back to GLM", e)
+            log.warning("task bridge failed (%s); falling back to small brain", e)
         except Exception:
             self._flagged = True
             log.exception("task turn crashed")
@@ -184,7 +185,7 @@ class OpenAICompatAdapter:
             try:
                 result = await self._chat(self._history)
             except Exception:
-                log.exception("GLM fallback failed too")
+                log.exception("small-brain fallback failed too")
                 result = "That one didn't come back from the workshop — I can try again in a moment."
         if not result:
             result = "That one didn't come back from the workshop — I can try again in a moment."

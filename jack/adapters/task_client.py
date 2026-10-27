@@ -1,12 +1,12 @@
 """Thin async client for the Mac-side Hermes bridge (adapter v2, Door 3).
 
-The bridge (bridge/hermes_bridge.py, Mac :8620) runs the full Hermes agent
-with real tools. This module only speaks HTTP to it — all logic lives on the
-Mac so the sidecar stays lean.
+The bridge (bridge/agent_bridge.py, LAN host :8620) runs the full agent
+with real tools. This module only speaks HTTP to it — all logic lives on
+the bridge host so the phone host stays lean.
 
 Env:
   JACK_TASK_BRIDGE_URL  e.g. http://<bridge-host>:8620 (LAN/tailnet IP of the
-                        machine running bridge/hermes_bridge.py)
+                        machine running bridge/agent_bridge.py)
   JACK_TASK_TIMEOUT_S   per-task budget in seconds (default 120)
 """
 

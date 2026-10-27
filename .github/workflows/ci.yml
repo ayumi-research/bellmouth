@@ -25,4 +25,5 @@ jobs:
         run: python -m pytest tests/ -q
       - name: Secrets scan (no live values in tracked files)
         run: |
-          ! grep -rn "KyraBot\|Sidecar26\|change-me-real\|sk-live" --include="*.py" --include="*.sh" --include="*.yml" --include="*.md" .
+          ! grep -rniF -f .secrets-patterns --exclude-dir=.git --exclude-dir=.venv \
+            --exclude=.secrets-patterns --exclude=.env . 

@@ -5,7 +5,8 @@ with real tools. This module only speaks HTTP to it — all logic lives on the
 Mac so the sidecar stays lean.
 
 Env:
-  JACK_TASK_BRIDGE_URL  e.g. http://BRIDGE_HOST:8620 (tailnet) or the LAN IP
+  JACK_TASK_BRIDGE_URL  e.g. http://<bridge-host>:8620 (LAN/tailnet IP of the
+                        machine running bridge/hermes_bridge.py)
   JACK_TASK_TIMEOUT_S   per-task budget in seconds (default 120)
 """
 

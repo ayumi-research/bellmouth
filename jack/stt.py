@@ -1,15 +1,16 @@
-"""STT: whisper.cpp server on the sidecar (ggml-base, CPU) — zero downloads, no VRAM.
+"""STT: whisper.cpp server (ggml-base, CPU) or faster-whisper backend.
 
-Uses the prebuilt /opt/whisper.cpp install (server binary + ggml-base.bin
-already on disk). Wires 48kHz mono int16 PCM (from media.py's VAD tap) -> 16k wav
--> HTTP POST /inference. Start the server once:
+whisper.cpp backend: a prebuilt whisper.cpp server install somewhere on your
+LAN. Wires 48kHz mono int16 PCM (from media.py's VAD tap) -> 16k wav -> HTTP
+POST /inference. Start the server once:
 
-  setsid nohup /opt/whisper.cpp/build/bin/whisper-server \\
-    --host 127.0.0.1 --port 8901 -m /opt/whisper.cpp/models/ggml-base.bin \\
+  setsid nohup <whisper.cpp>/build/bin/whisper-server \
+    --host 127.0.0.1 --port 8901 -m <models>/ggml-base.bin \
     </dev/null >>/tmp/whisper-server.log 2>&1 &
 
-(fallback backend: faster-whisper small if JACK_STT_BACKEND=faster — kept for
-portability to machines without the whisper.cpp install)
+Point JACK_STT_URL at it. Default backend is faster (faster-whisper, bundled
+model download, no server needed) — whisper.cpp is for hosts where you want
+zero model downloads at first run.
 """
 
 from __future__ import annotations

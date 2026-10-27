@@ -40,8 +40,11 @@ def load_config() -> dict:
         "livekit_key": os.environ.get("LIVEKIT_API_KEY", ""),
         "livekit_secret": os.environ.get("LIVEKIT_API_SECRET", ""),
         "livekit_service_url": os.environ.get("LIVEKIT_JWT_SERVICE_URL", "https://hs.example/livekit-jwt"),
-        "device_id": os.environ.get("JACK_DEVICE_ID", "JACK01"),
-        "allowlist_callers": [u.strip() for u in os.environ.get("JACK_ALLOWLIST_CALLERS", "").split(",") if u.strip()],
+        "device_id": os.environ.get("JACK_DEVICE_ID") or os.environ.get("MATRIX_VOICE_DEVICE_ID", "JACK01"),
+        # Primary allowlist (SECURITY.md): non-empty = ONLY these users may
+        # spawn sessions. Empty = any 1:1 DM caller (logged loudly).
+        "allowlist_callers": [u.strip() for u in os.environ.get(
+            "JACK_ALLOWED_USERS", os.environ.get("JACK_ALLOWLIST_CALLERS", "")).split(",") if u.strip()],
         "allowlist_rooms": [r.strip() for r in os.environ.get("JACK_ALLOWLIST_ROOMS", "").split(",") if r.strip()],
         "adapter": os.environ.get("JACK_ADAPTER", "echo"),
         "adapter_bot_decline_text": os.environ.get("JACK_BUSY_TEXT", "I'm on another call right now — try again in a minute."),
@@ -86,7 +89,7 @@ class CallWatcher:
         self._caller_left = False       # set when active caller publishes an empty membership
         self.start_ms = int(time.time() * 1000)
 
-    # ---- filtering (§6.1: allowlist before answer, default deny) ----
+    # ---- filtering (§6.1: allowlist before answer, default documented) ----
     def _allowed(self, room_id: str, sender: str) -> bool:
         if self.cfg["allowlist_callers"] and sender not in self.cfg["allowlist_callers"]:
             return False
@@ -359,8 +362,11 @@ class CallWatcher:
             try:
                 if hasattr(self.client, "olm") and self.client.olm:
                     self.client.olm.account.generate_one_time_keys(50)
-                await self.client.keys_upload()  # uploads device keys + OTKs
-                log.info("device keys + OTKs uploaded")
+                up = await self.client.keys_upload()  # uploads device keys + OTKs
+                if type(up).__name__ == "KeysUploadError":
+                    log.error("keys_upload FAILED: %s — Element cannot open olm sessions to us", up)
+                else:
+                    log.info("device keys + OTKs uploaded")
                 # verify upload really stuck: query our own keys
                 try:
                     q = await self.client.keys_query() if self.client.should_query_keys else None
@@ -428,8 +434,16 @@ async def amain() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
     cfg = load_config()
     w = CallWatcher(cfg)
-    # auto-accept invites so Z can create the voice DM without manual steps
+    if not cfg["allowlist_callers"]:
+        log.warning("JACK_ALLOWED_USERS empty: ANY 1:1 DM caller can spawn an agent "
+                    "session. Set it (comma-separated full user ids) to pin access.")
+    # auto-accept invites ONLY from allowlisted users (or all when no allowlist):
+    # a stranger's invite must not become a room the agent joins + speaks in.
     def on_invite(room, event):  # noqa
+        sender = getattr(event, "sender", "") or getattr(event, "user_id", "")
+        if not w._allowed(room.room_id, sender):
+            log.info("invite from non-allowlisted %s ignored (%s...)", sender[:24], room.room_id[:14])
+            return
         asyncio.ensure_future(w.client.join(room.room_id))
     w.client.add_event_callback(on_invite, (InviteEvent,))
     await w.run()

@@ -28,10 +28,11 @@ from .task_router import build_context_envelope, extract_task, heuristic_is_task
 log = logging.getLogger("jack.adapters.openai_compat")
 
 DEFAULT_SYSTEM_PROMPT = (
-    "You are Mei, a warm, playful AI agent on a live phone call with the user, who built you. "
-    "He may call from a car or a noisy place; if you mishear, ask him to repeat one word. "
+    "You are a warm, playful AI agent on a live phone call with the person who "
+    "deployed you. They may call from a car or a noisy place; if you mishear, ask "
+    "them to repeat one word. "
     "Speak in short natural sentences (1-2, never more than 3). No markdown, no lists, no emoji. "
-    "Keep replies under 40 words unless he asks for detail. Never ramble, never mention being a language model. "
+    "Keep replies under 40 words unless they ask for detail. Never ramble, never mention being a language model. "
     "Be curious, direct, a little cheeky."
 )
 
@@ -133,9 +134,13 @@ class OpenAICompatAdapter:
             reply = "Sorry, I glitched for a second — say that again?"
             self._flagged = True
         if reply:
+            # never speak control tags: strip [TASK: ...] before queueing
+            spoken = reply
+            if self.task_bridge:
+                _task, spoken = extract_task(reply)
             self._history.append({"role": "assistant", "content": reply})
-            self._transcript.append({"role": "assistant", "text": reply, "ts": time.time()})
-            await self._queue.put(AgentUtterance(text=reply, done=True))
+            self._transcript.append({"role": "assistant", "text": spoken, "ts": time.time()})
+            await self._queue.put(AgentUtterance(text=spoken, done=True))
         self._maybe_dispatch_task(text, reply)
 
     def _maybe_dispatch_task(self, user_text: str, reply: str) -> None:

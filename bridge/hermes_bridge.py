@@ -122,12 +122,12 @@ def _build_query(payload: dict) -> str:
         raise ValueError("missing 'task'")
     envelope = "\n".join(str(c) for c in (payload.get("context") or []) if str(c).strip())
     parts = [
-        "LIVE PHONE CALL with the user (voice turn, transcribed — he may be driving).",
+        "LIVE PHONE CALL with the user (voice turn, transcribed — they may be driving).",
         "",
         "Recent call context (for pronouns and follow-ups only):",
         envelope or "(call just started — no prior turns)",
         "",
-        f"the user just said: {task}",
+        f"The user just said: {task}",
         "",
         "Rules: answer for SPEECH — 1-3 short sentences, no markdown, no lists, "
         "no emoji, concrete result included. If the request needs a tool "
@@ -237,9 +237,10 @@ def main() -> None:
     app.router.add_post("/task", handle_task)
     app.router.add_get("/health", handle_health)
     app.router.add_get("/selftest", handle_selftest)
-    # Bind loopback + all interfaces (tailscale ACLs + LAN firewall gate access;
-    # the Mac firewall prompts once for the python binary).
-    web.run_app(app, host="0.0.0.0", port=PORT, print=None)
+    # Bind loopback by default — this service executes agent turns with full
+    # tool access. Remote binding is explicit: set JACK_BRIDGE_HOST=0.0.0.0
+    # (or a specific interface) and gate it with an ACL/firewall.
+    web.run_app(app, host=os.environ.get("JACK_BRIDGE_HOST", "127.0.0.1"), port=PORT, print=None)
 
 
 if __name__ == "__main__":

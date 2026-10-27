@@ -70,8 +70,14 @@ SYSTEM_SUFFIX = (
 )
 
 
-def _run_hermes(query: str, timeout_s: int = HERMES_TIMEOUT_S) -> str:
-    """Run a one-shot Hermes query synchronously; return final text or raise."""
+def _run_hermes(query: str, timeout_s: int = HERMES_TIMEOUT_S,
+                session_id: str | None = None) -> str:
+    """Run a Hermes query synchronously; return final text or raise.
+
+    With session_id the call rides a PERSISTENT Hermes session (--resume
+    --create-if-missing): the prefix cache stays warm (~3s/turn instead of
+    ~9s cold) and follow-ups like "did you send it?" see the earlier turns.
+    """
     cmd = [
         HERMES_BIN, "chat",
         "--query-file", "-",   # query via stdin: safe for arbitrary text
@@ -79,6 +85,10 @@ def _run_hermes(query: str, timeout_s: int = HERMES_TIMEOUT_S) -> str:
         # NOTE: --source <tag> is broken on this build (any non-"cli" source
         # fails the model connection with invalid_params); omitted.
     ]
+    if session_id:
+        # --create-if-missing pairs with --continue <NAME> (resume-by-name);
+        # --resume wants an existing session ID and fails on new names.
+        cmd += ["--continue", session_id, "--create-if-missing"]
     proc = subprocess.run(
         cmd, input=query.encode(), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         timeout=timeout_s,
@@ -92,25 +102,39 @@ def _run_hermes(query: str, timeout_s: int = HERMES_TIMEOUT_S) -> str:
     return out
 
 
+def _sanitize_session(session_id) -> str | None:
+    """Room ids contain !/: — Hermes session ids want [A-Za-z0-9_-]."""
+    if not session_id:
+        return None
+    import re
+    s = re.sub(r"[^A-Za-z0-9_-]", "", str(session_id))
+    return f"voice-{s[:48]}" if s else None
+
+
+# One hermes process at a time per session (two writers on one session id
+# would fork the transcript).
+_session_locks: dict[str, asyncio.Lock] = {}
+
+
 def _build_query(payload: dict) -> str:
     task = (payload.get("task") or "").strip()
     if not task:
         raise ValueError("missing 'task'")
     envelope = "\n".join(str(c) for c in (payload.get("context") or []) if str(c).strip())
     parts = [
-        "You are Hermes, briefly stepping in for Mei on a live phone call with "
-        "Zoltan. The caller asked for something that needs REAL tools on this "
-        "Mac — do it now, then answer for speech.",
+        "LIVE PHONE CALL with Zoltan (voice turn, transcribed — he may be driving).",
         "",
         "Recent call context (for pronouns and follow-ups only):",
         envelope or "(call just started — no prior turns)",
         "",
-        f"Current request from Zoltan: {task}",
+        f"Zoltan just said: {task}",
         "",
-        "Rules: use the terminal/files as needed to get a VERIFIED answer. "
-        "Reply with 1-3 short spoken sentences containing the concrete result. "
-        "If a tool fails, say what failed in plain words — never claim success "
-        "without the result in hand.",
+        "Rules: answer for SPEECH — 1-3 short sentences, no markdown, no lists, "
+        "no emoji, concrete result included. If the request needs a tool "
+        "(terminal, files, lookups), actually run it and report the real "
+        "result; if a tool fails, say what failed in plain words — never "
+        "claim success without the result in hand. If it's plain chat, just "
+        "be Mei: warm, direct, a little cheeky.",
     ]
     return "\n".join(parts)
 
@@ -125,16 +149,25 @@ async def handle_task(request: web.Request) -> web.Response:
     except ValueError as e:
         return web.json_response({"ok": False, "error": str(e)}, status=400)
 
+    session = _sanitize_session(payload.get("session_id"))
     loop = asyncio.get_running_loop()
     t0 = time.time()
     try:
-        reply = await loop.run_in_executor(None, _run_hermes, query)
+        if session:
+            lock = _session_locks.setdefault(session, asyncio.Lock())
+            async with lock:
+                reply = await loop.run_in_executor(
+                    None, _run_hermes, query, HERMES_TIMEOUT_S, session)
+        else:
+            reply = await loop.run_in_executor(None, _run_hermes, query)
     except Exception as e:
         log.exception("task failed")
         return web.json_response({"ok": False, "error": str(e)[:300]}, status=200)
     seconds = round(time.time() - t0, 1)
-    log.info("task done in %.1fs: %.80s -> %.80s", seconds, payload.get("task", ""), reply)
-    return web.json_response({"ok": True, "reply": reply, "seconds": seconds})
+    log.info("task done in %.1fs (session=%s): %.80s -> %.80s",
+             seconds, session or "oneshot", payload.get("task", ""), reply)
+    return web.json_response({"ok": True, "reply": reply, "seconds": seconds,
+                              "session": session})
 
 
 async def handle_health(request: web.Request) -> web.Response:

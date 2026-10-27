@@ -1,5 +1,7 @@
 # bellmouth — a Matrix voice-call agent that answers with a real brain
 
+**Status / roadmap:** [ROADMAP.md](ROADMAP.md)
+
 **bellmouth** (codename *the jack*) is a daemon that sits on a Matrix account, waits for an
 [Element Call](https://element.io/call) (MatrixRTC) ring, auto-answers,
 joins the LiveKit SFU, and holds a real *spoken* conversation — speech in,

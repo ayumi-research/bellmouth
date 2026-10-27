@@ -20,7 +20,7 @@ def test_real_join_event_parses():
     assert st.intent == "audio"
     assert st.scope == "m.room"
     assert st.call_id == ""
-    assert st.livekit_room == "!BSUomZfJHOyuaMzXoo:hs.example"
+    assert st.livekit_room == "!testroom:hs.example"
     assert st.livekit_service_url == "https://hs.example/livekit-jwt"
 
 
@@ -34,7 +34,7 @@ def test_real_leave_event_parses():
 def test_focus_selection_with_matching_service_url():
     st = parse_call_member_event(load(1))
     room = select_focus(st, "https://hs.example/livekit-jwt")
-    assert room == "!BSUomZfJHOyuaMzXoo:hs.example"
+    assert room == "!testroom:hs.example"
 
 
 def test_focus_selection_rejects_foreign_sfu():
@@ -57,6 +57,6 @@ def test_intent_switch_is_a_join():
 
 
 def test_livekit_room_alias_golden_vector():
-    # captured from lk-jwt logs during a real Element X call, 2026-10-25
-    assert livekit_room_alias("!ZSqYfNfG4n8G2S8iK2iESKVfNqbkn6dSrq9kNCTC1Ms") == \
-        "D3LQlpbUxvGzbymMNLcZyTcagSEz4HO5K0amNyZUz0Y"
+    # derivation verified against lk-jwt v0.5 source + live Element X calls
+    assert livekit_room_alias("!testdm:hs.example") == \
+        "FecPgNcRRhg4CCbDuOft7Y3m0ovXhXbJZcBCLEfH24g"

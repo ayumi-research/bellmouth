@@ -17,12 +17,12 @@
     "foci_preferred": [
       {
         "type": "livekit",
-        "livekit_alias": "!BSUomZfJHOyuaMzXoo:hs.example",
+        "livekit_alias": "!testroom:hs.example",
         "livekit_service_url": "https://hs.example/livekit-jwt"
       }
     ]
   },
-  "room_id": "!BSUomZfJHOyuaMzXoo:hs.example",
+  "room_id": "!testroom:hs.example",
   "state_key": "_@caller:hs.example_DEVICEAAA111_m.call",
   "origin_server_ts": 1792871045939
 }

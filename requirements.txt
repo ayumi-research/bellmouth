@@ -1,12 +1,15 @@
-# runtime — proven combo: matrix-nio 0.26 + vodozemac 0.10 (E2EE via
-# vodozemac bindings; the legacy [e2e] extra pulls python-olm, which still
-# source-builds libolm and fails on modern clang)
-matrix-nio>=0.26
-vodozemac>=0.10
-pycryptodome>=4.0
-unpaddedbase64>=2.0
-cachetools>=4.0  # nio 0.26 misses this dep when installed without [e2e]
-livekit>=1.0
+# runtime — proven combo (mirror of the live-validated deployment):
+# matrix-nio 0.26 + vodozemac 0.10 does E2EE via vodozemac bindings; the
+# legacy [e2e] extra pulls python-olm, which still source-builds libolm and
+# fails on modern clang. cachetools/atomicwrites: nio 0.26 misses them when
+# installed without that extra.
+matrix-nio==0.26.0
+vodozemac==0.10.0
+pycryptodome==4.2.0
+unpaddedbase64==2.1.0
+cachetools>=4.0
+atomicwrites>=1.4
+livekit==1.1.21
 aiohttp>=3.9
 PyJWT>=2.8
 faster-whisper>=1.0

@@ -36,9 +36,11 @@ Element-Call-capable RTC stack works.
   publishes its own membership state so Element X stops ringing, speaks with
   the participant identity `<mxid>:<DEVICE>` (a bare mxid identity = "audio in
   SFU, caller deaf" — the bug that cost us a whole evening).
-- **E2EE media keys.** Decrypts `io.element.call.encryption_keys` olm
-  to-device messages and feeds the LiveKit frame encryption — the call is
-  encrypted end to end, keys never touch the server.
+- **E2EE media keys, both directions.** Decrypts `io.element.call.encryption_keys` olm
+  to-device messages and feeds the LiveKit frame encryption for inbound audio; generates
+  its own per-call key, publishes AES-GCM frame-encrypted audio, and olm-distributes the
+  key to every member device — the call is end-to-end encrypted, keys never touch the
+  server (live-validated full-duplex, 2026-10-27).
 - **Two brains, one phone call.** A small local LLM handles the chat at
   ~1-2s latency; anything that needs *real* tools escalates to a full
   agent session (the bridge) whose verified answer is spoken when it lands.

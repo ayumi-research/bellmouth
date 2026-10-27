@@ -1,28 +1,28 @@
 {
   "type": "org.matrix.msc3401.call.member",
-  "sender": "@zoltan:matrix.ayumi.town",
+  "sender": "@caller:hs.example",
   "content": {
     "scope": "m.room",
     "call_id": "",
     "expires": 14400000,
-    "device_id": "TRNBXOZARK",
+    "device_id": "DEVICEAAA111",
     "created_ts": 1792870989053,
     "application": "m.call",
     "focus_active": {
       "type": "livekit",
       "focus_selection": "multi_sfu"
     },
-    "membershipID": "@zoltan:matrix.ayumi.town:TRNBXOZARK",
+    "membershipID": "@caller:hs.example:DEVICEAAA111",
     "m.call.intent": "video",
     "foci_preferred": [
       {
         "type": "livekit",
-        "livekit_alias": "!BSUomZfJHOyuaMzXoo:matrix.ayumi.town",
-        "livekit_service_url": "https://matrix.ayumi.town/livekit-jwt"
+        "livekit_alias": "!testroom:hs.example",
+        "livekit_service_url": "https://hs.example/livekit-jwt"
       }
     ]
   },
-  "room_id": "!BSUomZfJHOyuaMzXoo:matrix.ayumi.town",
-  "state_key": "_@zoltan:matrix.ayumi.town_TRNBXOZARK_m.call",
+  "room_id": "!testroom:hs.example",
+  "state_key": "_@caller:hs.example_DEVICEAAA111_m.call",
   "origin_server_ts": 1792871045939
 }

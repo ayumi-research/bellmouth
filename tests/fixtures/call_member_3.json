@@ -1,8 +1,8 @@
 {
   "type": "org.matrix.msc3401.call.member",
-  "sender": "@luca:matrix.ayumi.town",
+  "sender": "@other:hs.example",
   "content": {},
-  "room_id": "!BSUomZfJHOyuaMzXoo:matrix.ayumi.town",
-  "state_key": "_@luca:matrix.ayumi.town_OPFBQKUHMC_m.call",
+  "room_id": "!testroom:hs.example",
+  "state_key": "_@other:hs.example_DEVICEBBB222_m.call",
   "origin_server_ts": 1792871067643
 }

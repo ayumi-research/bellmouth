@@ -1,8 +1,8 @@
 {
   "type": "org.matrix.msc3401.call.member",
-  "sender": "@zoltan:matrix.ayumi.town",
+  "sender": "@caller:hs.example",
   "content": {},
-  "room_id": "!BSUomZfJHOyuaMzXoo:matrix.ayumi.town",
-  "state_key": "_@zoltan:matrix.ayumi.town_TRNBXOZARK_m.call",
+  "room_id": "!testroom:hs.example",
+  "state_key": "_@caller:hs.example_DEVICEAAA111_m.call",
   "origin_server_ts": 1792871067333
 }

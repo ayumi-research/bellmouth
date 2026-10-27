@@ -33,12 +33,12 @@ log = logging.getLogger("jack.watcher")
 def load_config() -> dict:
     return {
         "homeserver": os.environ["MATRIX_HOMESERVER_URL"],
-        "user_id": os.environ["MATRIX_VOICE_ACCOUNT"],           # @mei_voice:matrix.ayumi.town
+        "user_id": os.environ["MATRIX_VOICE_ACCOUNT"],           # @agent:hs.example
         "access_token": os.environ["MATRIX_VOICE_ACCESS_TOKEN"],
-        "livekit_url": os.environ.get("LIVEKIT_URL", "wss://matrix.ayumi.town/lk"),
+        "livekit_url": os.environ.get("LIVEKIT_URL", "wss://hs.example/lk"),
         "livekit_key": os.environ.get("LIVEKIT_API_KEY", ""),
         "livekit_secret": os.environ.get("LIVEKIT_API_SECRET", ""),
-        "livekit_service_url": os.environ.get("LIVEKIT_JWT_SERVICE_URL", "https://matrix.ayumi.town/livekit-jwt"),
+        "livekit_service_url": os.environ.get("LIVEKIT_JWT_SERVICE_URL", "https://hs.example/livekit-jwt"),
         "device_id": os.environ.get("JACK_DEVICE_ID", "JACK01"),
         "allowlist_callers": [u.strip() for u in os.environ.get("JACK_ALLOWLIST_CALLERS", "").split(",") if u.strip()],
         "allowlist_rooms": [r.strip() for r in os.environ.get("JACK_ALLOWLIST_ROOMS", "").split(",") if r.strip()],

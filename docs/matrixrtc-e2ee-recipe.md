@@ -27,8 +27,8 @@ has the summary rules.
   `m.rtc.encryption_key` (standardized), plus `m.room_key` (megolm session sharing).
 - Live shape (Element X, call in an encrypted room):
   {"keys": {"index": 1, "key": "<b64 16 bytes>"},          # DICT, not a list
-   "member": {"claimed_device_id": "TRNBXOZARK",
-              "id": "@caller:matrix.hs.example:TRNBXOZARK"},  # canonical livekit identity
+   "member": {"claimed_device_id": "DEVICEAAA111",
+              "id": "@caller:matrix.hs.example:DEVICEAAA111"},  # canonical livekit identity
    "room_id": "...", "sent_ts": ..., "session": {"application": "m.call", ...}}
 - Identity for `key_provider.set_key` MUST be `member.id` — it matches the livekit participant
   identity minted from the membership event; guessing sender:device breaks decryption.

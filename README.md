@@ -127,6 +127,7 @@ lines in the log.
 
 Proven live end-to-end (E2EE key transport, adaptive VAD, tool escalation,
 barge-in v1): see `docs/` for the protocol notes and debugging trees.
+How the E2EE audio path works (keys vs audio roads): [docs/e2ee-architecture.md](docs/e2ee-architecture.md).
 Roadmap: Silero VAD, sentence-streaming TTS, delayed-leave heartbeats
 (MSC4140), encrypted hangup summaries, jack-control MCP server.
 

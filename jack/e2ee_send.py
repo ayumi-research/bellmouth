@@ -75,27 +75,50 @@ class OutboundKeys:
 
     # -- key distribution --------------------------------------------------
     def _payloads(self, room_id: str) -> list[tuple[str, dict]]:
-        """Both accepted payload shapes; receivers tolerate either."""
+        """Compat element event (modern+legacy fields, per current element-call
+        sender) + the MSC4143 standardized event (correct schema: media_key
+        singular). Receivers tolerate either; JS dispatches the experimental
+        type, so it is the primary."""
         key_obj = {"index": self.index, "key": b64(self.key)}
-        session = {"call_id": "", "application": "m.call", "scope": "m.room"}
+        member_id = f"{self.user_id}:{self.device_id}"
         ts = int(time.time() * 1000)
         element = {
-            "keys": key_obj,
-            "member": {
-                "claimed_device_id": self.device_id,
-                "id": f"{self.user_id}:{self.device_id}",
-            },
             "room_id": room_id,
+            "member_id": member_id,                      # modern (preferred)
+            "media_key": dict(key_obj),                  # modern (preferred)
+            "keys": dict(key_obj),                       # legacy fallback
+            "member": {                                  # legacy fallback
+                "claimed_device_id": self.device_id,
+                "id": member_id,
+            },
+            "session": {"call_id": "", "application": "m.call", "scope": "m.room"},
             "sent_ts": ts,
-            "session": session,
         }
         standardized = {
-            "keys": [dict(key_obj)],
-            "member_id": f"{self.user_id}:{self.device_id}",
             "room_id": room_id,
-            "sent_ts": ts,
+            "member_id": member_id,
+            "media_key": dict(key_obj),
         }
         return [(ELEMENT_KEY_TYPE, element), (STANDARD_KEY_TYPE, standardized)]
+
+    def select_index(self, room, livekit_identity: str) -> bool:
+        """Installing a key is NOT selecting it: pin the local sender cryptor
+        to our key index before the first audio frame (astra-verified FFI
+        behavior). Call AFTER publishing tracks."""
+        try:
+            mgr = getattr(room, "e2ee_manager", None)
+            for cryptor in (mgr.frame_cryptors() if mgr else []):
+                if getattr(cryptor, "participant_identity", "") == livekit_identity:
+                    cryptor.set_key_index(self.index)
+                    log.info("sender cryptor index pinned to %d (%s)", self.index,
+                             livekit_identity[:30])
+                    return True
+            log.warning("no local frame cryptor found for %s; index not pinned",
+                        livekit_identity[:30])
+            return False
+        except Exception:
+            log.exception("select_index failed")
+            return False
 
     async def distribute(self, room_id: str, member_users: list[str]) -> int:
         """olm-encrypt our key to every member device of the call. Returns devices messaged."""

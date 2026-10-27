@@ -177,12 +177,19 @@ class CallWatcher:
                 st.media.receiver = self.receiver
                 self.receiver.bind_room(st.media.room)
             if encrypt:
-                # our key under our identity BEFORE the first published frame
-                if not outbound.install_own(st.media.room, identity):
+                # our key under our ACTUAL connected identity (may differ from
+                # the JWT string) BEFORE the first published frame
+                actual = getattr(st.media.room.local_participant, "identity", identity)
+                if actual != identity:
+                    log.info("local participant identity: %s", actual[:40])
+                if not outbound.install_own(st.media.room, actual):
                     log.warning("outbound key install failed; publishing PLAINTEXT")
             await st.media.publish_dummy_video()
             await st.media.publish_audio_track()
             if encrypt:
+                # installing the key is not selecting it — pin the sender index
+                outbound.select_index(st.media.room,
+                                      getattr(st.media.room.local_participant, "identity", identity))
                 try:
                     members = list(self._room_members.get(st.room_id, set())) or \
                         list((await self._fetch_members_raw(st.room_id)))

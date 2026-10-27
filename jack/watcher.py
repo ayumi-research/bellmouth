@@ -185,6 +185,11 @@ class CallWatcher:
         st.media.expected_remote_identity = f"{st.caller}:{caller_dev}" if caller_dev else st.caller
         try:
             await st.media.connect(room_options=e2ee_keys.e2ee_room_options(encrypt_outbound=encrypt))
+            # receiver binding is UNCONDITIONAL: without it the room's decrypt
+            # hook has nowhere to install remote keys -> inbound audio is zeros
+            self.receiver.matrix_room_id = st.room_id
+            st.media.receiver = self.receiver
+            self.receiver.bind_room(st.media.room)
             if encrypt:
                 # our key under our ACTUAL connected identity (may differ from
                 # the JWT string) BEFORE the first published frame
@@ -193,10 +198,6 @@ class CallWatcher:
                     log.info("local participant identity: %s", actual[:40])
                 if not outbound.install_own(st.media.room, actual):
                     raise RuntimeError("outbound E2EE key install failed — refusing to publish plaintext")
-            else:
-                self.receiver.matrix_room_id = st.room_id
-                st.media.receiver = self.receiver
-                self.receiver.bind_room(st.media.room)
             await st.media.publish_dummy_video()
             await st.media.publish_audio_track()
             if encrypt:
@@ -213,10 +214,6 @@ class CallWatcher:
                     log.exception("outbound key distribution failed")
                 if sent == 0:
                     raise RuntimeError("outbound key reached zero devices — caller could not decrypt; aborting")
-            else:
-                if self.receiver is not None:
-                    st.media.receiver = self.receiver
-                    self.receiver.bind_room(st.media.room)
             await self._publish_membership(st.room_id)  # the actual "answer" signal for Element X
 
             async def handle_utterance(pcm: bytes):

@@ -23,6 +23,7 @@ from .adapters.echo import EchoAdapter
 from .adapters.openai_compat import OpenAICompatAdapter
 from .events import CALL_MEMBER_TYPE, CallMemberState, livekit_room_alias, parse_call_member_event, select_focus
 from . import e2ee_keys
+from . import e2ee_send
 from .media import CallMedia
 from .mint import mint_participant_token
 from .sink import post_call_summary
@@ -45,6 +46,9 @@ def load_config() -> dict:
         "adapter": os.environ.get("JACK_ADAPTER", "echo"),
         "adapter_bot_decline_text": os.environ.get("JACK_BUSY_TEXT", "I'm on another call right now — try again in a minute."),
         "retention_s": int(os.environ.get("JACK_RETENTION", "0")),
+        # E2EE outbound: frame-encrypt OUR published audio (default on; set 0 to
+        # publish plaintext while debugging).
+        "encrypt_outbound": os.environ.get("JACK_E2EE_OUTBOUND", "1") not in ("0", "false", "no"),
     }
 
 
@@ -161,14 +165,30 @@ class CallWatcher:
 
     async def _run_call(self, state: CallState) -> None:
         st = state
+        encrypt = bool(self.cfg.get("encrypt_outbound"))
+        identity = f'{self.cfg["user_id"]}:{self.cfg["device_id"]}'
+        outbound = e2ee_send.OutboundKeys(
+            self.client, self.cfg["user_id"], self.cfg["device_id"])
+        outbound.generate()
         try:
-            await st.media.connect(room_options=e2ee_keys.e2ee_room_options())
+            await st.media.connect(room_options=e2ee_keys.e2ee_room_options(encrypt_outbound=encrypt))
             if self.receiver is not None:
                 self.receiver.matrix_room_id = st.room_id
                 st.media.receiver = self.receiver
                 self.receiver.bind_room(st.media.room)
+            if encrypt:
+                # our key under our identity BEFORE the first published frame
+                if not outbound.install_own(st.media.room, identity):
+                    log.warning("outbound key install failed; publishing PLAINTEXT")
             await st.media.publish_dummy_video()
             await st.media.publish_audio_track()
+            if encrypt:
+                try:
+                    members = list(self._room_members.get(st.room_id, set())) or \
+                        list((await self._fetch_members_raw(st.room_id)))
+                    await outbound.distribute(st.room_id, members)
+                except Exception:
+                    log.exception("outbound key distribution failed (caller may hear silence)")
             await self._publish_membership(st.room_id)  # the actual "answer" signal for Element X
 
             async def handle_utterance(pcm: bytes):

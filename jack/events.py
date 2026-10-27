@@ -95,7 +95,9 @@ def livekit_room_alias(matrix_room_id: str, slot_id: str = "m.call#ROOM") -> str
 
     lk-jwt hashes json([room_id, slot_id]) sha256 -> unpadded std64. The
     `livekit_alias` field in membership events is the Matrix room ID and is
-    NOT the SFU room name (source comment in lk-jwt main.go confirms).
+    NOT the SFU room name — verified against element-hq's lk-jwt-service
+    v0.5 (AGPL-3) source and its own comments; no code copied, credit and
+    details in ATTRIBUTIONS.md.
     Golden vector: room !testdm:hs.example ->
     FecPgNcRRhg4CCbDuOft7Y3m0ovXhXbJZcBCLEfH24g.
     """

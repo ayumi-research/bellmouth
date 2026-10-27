@@ -5,7 +5,8 @@ SFrame E2EE; keys travel in `io.element.call.encryption_keys` / `m.rtc.encryptio
 events (olm to-device AND/OR megolm room events). We install them into the livekit
 E2EE KeyProvider per participant identity.
 
-Device identity: @mei_voice with device_id JACK01, olm store in /opt/jack/crypto_store.
+Device identity: the voice account (@agent:hs.example) with device_id JACK01,
+olm store in /opt/jack/crypto_store (JACK_CRYPTO_STORE).
 First run uploads device keys; Element X then olm-encrypts key events to us.
 """
 
@@ -128,70 +129,72 @@ def extract_keys_from_content(content: dict, sender: str) -> list[dict]:
     return out
 
 
-def make_olm_hook(client, receiver: MediaKeyReceiver):
+def make_olm_hook(client, receiver_holder):
     """Intercept decrypted olm to-device events (nio-private hook, version-sensitive).
 
-    user_device_identities: {(user_id, device_id): livekit_identity}
-    Returns the installed callable.
+    receiver_holder: object with a `.receiver` attribute (the watcher) so the
+    active per-call receiver can be swapped without re-installing the hook.
+    The ORIGINAL handler is ALWAYS invoked afterwards — dropping it silently
+    kills ordinary Megolm room-key delivery (found by pre-release review).
     """
     from types import MethodType
-
-    def dispatch(self, sender, sender_key, payload):
-        try:
-            if isinstance(payload, str):
-                payload = json.loads(payload)
-            if isinstance(payload, dict):
-                log.info("olm payload seen: type=%s keys=%s", payload.get("type"),
-                         sorted((payload.get("content") or {}).keys())[:6])
-            if not isinstance(payload, dict) or payload.get("type") not in KEY_TYPES:
-                pass
-            else:
-                content = payload.get("content") or payload
-                member = content.get("member")
-                if isinstance(member, dict) and member.get("id", "").count(":") >= 2:
-                    ident = member["id"]  # canonical livekit identity
-                elif isinstance(member, str) and member.startswith("@") and member.count(":") >= 2:
-                    ident = member  # already the livekit identity @user:domain:device
-                elif isinstance(member, dict):
-                    ident = member.get("claimed_device_id", "") or f"{sender}:?"
-                else:
-                    dev = content.get("device_id", "") or ""
-                    ident = f"{sender}:{dev}"
-                if isinstance(ident, str) and not ident.startswith("@"):
-                    ident = f"{sender.split(':')[0]}:{ident}"  # device-only -> @user:device
-                mks = extract_keys_from_content(content, sender)
-                # NOTE: never log raw content here — it carries the decrypted media keys.
-                log.info("call key event: ident=%s nkeys=%d types=%s",
-                         ident, len(mks), [sorted(k.keys()) for k in mks])
-                for mk in mks:
-                    receiver.install(ident, mk)
-        except Exception:
-            log.exception("olm key-event dispatch failed")
-        return None
 
     machine = getattr(client, "olm", None)
     if machine is None:
         log.warning("no olm machine on client; key hook not installed")
         return None
-    for name in ("_handle_olm_event", "_handle_olm_events"):
-        fn = getattr(machine, name, None)
-        if fn is None:
-            continue
-        if name.endswith("_events"):  # plural signature: (events)
-            def wrapper(events, _orig=fn, _self=machine):
-                for ev in events:
-                    try:
-                        sender = getattr(ev, "sender", "")
-                        sender_key = getattr(ev, "sender_key", "")
-                        payload = getattr(ev, "payload", None)
-                        if payload is not None:
-                            dispatch(_self, sender, sender_key, payload)
-                    except Exception:
-                        log.exception("key event unwrap failed")
-                return _orig(events)
-            setattr(machine, name, MethodType(wrapper, machine))
-        else:
-            setattr(machine, name, MethodType(dispatch, machine))
-        log.info("olm hook installed on %s", name)
-        return dispatch
-    return None
+    original = machine._handle_olm_event  # bound method; capture BEFORE replacing
+
+    def sender_key_matches(sender: str, device_id: str, sender_key: str) -> bool:
+        """The claimed device's curve25519 must equal the olm sender_key."""
+        try:
+            dev = machine.device_store[sender][device_id]
+            return dev.curve25519 == sender_key
+        except Exception:
+            return True  # device not in store yet: fail open (olm envelope already authenticated sender_key)
+
+    def dispatch(self, sender, sender_key, payload):
+        try:
+            if isinstance(payload, str):
+                payload = json.loads(payload)
+            if isinstance(payload, dict) and payload.get("type") in KEY_TYPES:
+                recv = getattr(receiver_holder, "receiver", None)
+                content = payload.get("content") or payload
+                # bind to the ACTIVE call: ignore keys for other rooms
+                active_room = getattr(recv, "matrix_room_id", "") if recv else ""
+                if active_room and content.get("room_id") not in (None, "", active_room):
+                    log.info("key event for inactive room %s ignored", str(content.get("room_id"))[:14])
+                else:
+                    member = content.get("member")
+                    if isinstance(member, dict) and member.get("id", "").count(":") >= 2:
+                        ident = member["id"]  # canonical livekit identity
+                    elif isinstance(member, str) and member.startswith("@") and member.count(":") >= 2:
+                        ident = member  # already the livekit identity @user:domain:device
+                    elif isinstance(member, dict):
+                        ident = member.get("claimed_device_id", "") or f"{sender}:?"
+                    else:
+                        dev = content.get("device_id", "") or ""
+                        ident = f"{sender}:{dev}"
+                    if isinstance(ident, str) and not ident.startswith("@"):
+                        ident = f"{sender.split(':')[0]}:{ident}"  # device-only -> @user:device
+                    # authenticate the claim: sender_key must be the claimed
+                    # device's curve25519 (defends a forged member.id)
+                    claimed_dev = (member or {}).get("claimed_device_id") or content.get("device_id") or ""
+                    if claimed_dev and not sender_key_matches(sender, claimed_dev, sender_key):
+                        log.warning("key event sender_key mismatch for %s:%s — dropped",
+                                    sender[:20], str(claimed_dev)[:10])
+                    elif recv is not None:
+                        mks = extract_keys_from_content(content, sender)
+                        # NOTE: never log raw content — it carries decrypted media keys.
+                        log.info("call key event: ident=%s nkeys=%d types=%s",
+                                 ident, len(mks), [sorted(k.keys()) for k in mks])
+                        for mk in mks:
+                            recv.install(ident, mk)
+        except Exception:
+            log.exception("olm key-event dispatch failed")
+        # ALWAYS delegate: ordinary Megolm room keys etc. must reach nio.
+        return original(sender, sender_key, payload)
+
+    setattr(machine, "_handle_olm_event", MethodType(dispatch, machine))
+    log.info("olm hook installed (delegating to original handler)")
+    return dispatch

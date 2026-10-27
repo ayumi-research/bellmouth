@@ -22,10 +22,10 @@ shell with a microphone:
   hosts — the default posture here is "brain on localhost/LAN, no
   inbound ports".
 - **Caller allowlist**: `JACK_ALLOWED_USERS` (comma-separated full user ids).
-  **Non-empty = default-deny**: only listed users can spawn a session, and
-  invites from anyone else are ignored. Empty = any 1:1 DM caller may start
-  a session (the watcher logs a loud warning when unconfigured). The watcher
-  only ever answers 1:1 DMs; group rooms are opt-in future work.
+  **Default-deny**: with no allowlist configured the jack answers NOBODY and
+  refuses all invites; set the variable to exactly the users who may spawn
+  sessions. The watcher also only ever answers 1:1 DMs; group rooms are
+  opt-in future work.
 - **The bridge is powerful**: `bridge/hermes_bridge.py` executes agent
   turns with full tool access on its host. Do NOT expose :8620 beyond
   your LAN/tailnet; there is no auth on the endpoint by design — it is a

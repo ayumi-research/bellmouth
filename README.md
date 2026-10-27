@@ -1,6 +1,6 @@
-# the jack — a Matrix voice-call agent that answers with a real brain
+# bellmouth — a Matrix voice-call agent that answers with a real brain
 
-**the jack** is a daemon that sits on a Matrix account, waits for an
+**bellmouth** (codename *the jack*) is a daemon that sits on a Matrix account, waits for an
 [Element Call](https://element.io/call) (MatrixRTC) ring, auto-answers,
 joins the LiveKit SFU, and holds a real *spoken* conversation — speech in,
 agent brain, speech out. No bot-framework puppet strings: the caller talks
@@ -39,8 +39,10 @@ Element-Call-capable RTC stack works.
 - **E2EE media keys, both directions.** Decrypts `io.element.call.encryption_keys` olm
   to-device messages and feeds the LiveKit frame encryption for inbound audio; generates
   its own per-call key, publishes AES-GCM frame-encrypted audio, and olm-distributes the
-  key to every member device — the call is end-to-end encrypted, keys never touch the
-  server (live-validated full-duplex, 2026-10-27).
+  key to every member device — the call is end to end encrypted, keys never touch the
+  server (live-validated full-duplex, 2026-10-27). **Encryption is enforced, not
+  best-effort: if key setup or distribution fails, the call is refused rather than
+  silently downgraded to plaintext.**
 - **Two brains, one phone call.** A small local LLM handles the chat at
   ~1-2s latency; anything that needs *real* tools escalates to a full
   agent session (the bridge) whose verified answer is spoken when it lands.

@@ -10,7 +10,7 @@ any other.
 
 | Project | What we use it for | License | By |
 |---|---|---|---|
-| [matrix-nio](https://github.com/matrix-org/matrix-nio) | Matrix client: sync, rooms, **E2EE (olm/megolm)** key transport | Apache-2.0 | matrix.org / community |
+| [matrix-nio](https://github.com/matrix-org/matrix-nio) | Matrix client: sync, rooms, **E2EE (olm/vodozemac)** key transport | ISC | matrix.org / community |
 | [livekit Python SDK](https://github.com/livekit/python-sdks) | RTC: joining the SFU, publishing/subscribing tracks | Apache-2.0 | [LiveKit](https://livekit.io/) |
 | [aiohttp](https://github.com/aio-libs/aiohttp) | async HTTP (watcher, adapters, bridge) | Apache-2.0 | aio-libs |
 | [PyJWT](https://github.com/jpadilla/pyjwt) | participant-token minting (HS256) | MIT | José Padilla |

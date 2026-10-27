@@ -24,8 +24,13 @@ STORE_PATH = os.environ.get("JACK_CRYPTO_STORE", "/opt/jack/crypto_store")
 DEVICE_ID = os.environ.get("JACK_DEVICE_ID", "JACK01")
 
 
-def e2ee_room_options():
-    """RoomOptions with a receive-capable HKDF key provider; we publish plain."""
+def e2ee_room_options(encrypt_outbound: bool = False):
+    """RoomOptions with an HKDF key provider.
+
+    encrypt_outbound=True: publish frame-encrypted (GCM) — the OutboundKeys
+    module must install our key under our identity BEFORE the first publish.
+    False (legacy): publish plaintext, decrypt only.
+    """
     from livekit import rtc
     provider = rtc.KeyProviderOptions(
         shared_key=None,
@@ -35,7 +40,8 @@ def e2ee_room_options():
         failure_tolerance=-1,
         key_derivation_function=rtc.KeyDerivationFunction.HKDF,
     )
-    opts = rtc.E2EEOptions(key_provider_options=provider, encryption_type=rtc.EncryptionType.NONE)
+    etype = rtc.EncryptionType.GCM if encrypt_outbound else rtc.EncryptionType.NONE
+    opts = rtc.E2EEOptions(key_provider_options=provider, encryption_type=etype)
     import inspect
     fields = {f.name for f in getattr(rtc.RoomOptions, "__dataclass_fields__", {}).values()} \
         if hasattr(rtc.RoomOptions, "__dataclass_fields__") else []
@@ -154,8 +160,9 @@ def make_olm_hook(client, receiver: MediaKeyReceiver):
                 if isinstance(ident, str) and not ident.startswith("@"):
                     ident = f"{sender.split(':')[0]}:{ident}"  # device-only -> @user:device
                 mks = extract_keys_from_content(content, sender)
-                log.info("call key event: ident=%s nkeys=%d raw=%s", ident, len(mks),
-                         json.dumps(content)[:600])
+                # NOTE: never log raw content here — it carries the decrypted media keys.
+                log.info("call key event: ident=%s nkeys=%d types=%s",
+                         ident, len(mks), [sorted(k.keys()) for k in mks])
                 for mk in mks:
                     receiver.install(ident, mk)
         except Exception:

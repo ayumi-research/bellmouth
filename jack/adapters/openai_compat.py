@@ -73,6 +73,11 @@ class OpenAICompatAdapter:
         self.max_tokens = max(500, max_tokens)
         self.max_history = max_history
         self.task_bridge = bool(os.environ.get("JACK_TASK_BRIDGE_URL"))
+        # JACK_ROUTE=hermes: EVERY turn rides the full Hermes brain (no D1
+        # picker, no [TASK:] tagging — Z's verdict 2026-10-27: Door 1 is
+        # soulless, Door 2 latency is fine). GLM stays as bridge-down
+        # fallback only. Default "hybrid" keeps the v2 picker behavior.
+        self.route = os.environ.get("JACK_ROUTE", "hybrid").strip().lower()
         self._session: CallSession | None = None
         self._history: list = [{
             "role": "system",
@@ -115,6 +120,13 @@ class OpenAICompatAdapter:
         self._history.append({"role": "user", "content": text})
         if len(self._history) > self.max_history + 1:
             self._history = [self._history[0]] + self._history[-(self.max_history):]
+        if self.route == "hermes" and self.task_bridge:
+            # All-Hermes mode: no GLM turn at all, no picker — the full brain
+            # answers every turn (async; result queued to TTS when it lands).
+            t = asyncio.ensure_future(self._run_task_turn(text))
+            self._pending_tasks.add(t)
+            t.add_done_callback(self._pending_tasks.discard)
+            return
         try:
             reply = await self._chat(self._history)
         except Exception as e:  # never crash the call on one bad turn
@@ -146,6 +158,8 @@ class OpenAICompatAdapter:
         t.add_done_callback(self._pending_tasks.discard)
 
     async def _run_task_turn(self, task: str) -> None:
+        bridge_failed = False
+        result: str | None = None
         try:
             result = await task_client.run_task(
                 task,
@@ -154,14 +168,23 @@ class OpenAICompatAdapter:
             )
         except task_client.TaskBridgeError as e:
             self._flagged = True
-            result = None
-            log.warning("task bridge failed (%s); speaking fallback", e)
+            bridge_failed = True
+            log.warning("task bridge failed (%s); falling back to GLM", e)
         except Exception:
             self._flagged = True
             log.exception("task turn crashed")
-            result = None
+            bridge_failed = True
+        if bridge_failed:
+            # Door 1 as failover: a soulless answer beats silence on a call.
+            try:
+                result = await self._chat(self._history)
+            except Exception:
+                log.exception("GLM fallback failed too")
+                result = "That one didn't come back from the workshop — I can try again in a moment."
         if not result:
             result = "That one didn't come back from the workshop — I can try again in a moment."
+        self._history.append({"role": "assistant", "content": result})
+        self._transcript.append({"role": "assistant", "text": result, "ts": time.time()})
         await self._queue.put(AgentUtterance(text=result, done=True))
 
     def transcript_stream(self) -> AsyncIterator[AgentUtterance]:

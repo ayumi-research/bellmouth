@@ -80,7 +80,7 @@ def build_context_envelope(history: list[dict], turns: int = 6) -> str:
     return "\n".join(lines)
 
 
-def build_task_prompt(task: str, envelope: str, caller: str = "Zoltan") -> str:
+def build_task_prompt(task: str, envelope: str, caller: str = "the user") -> str:
     """Compose the one-shot Hermes query for a call task."""
     parts = [
         "You are Hermes, briefly stepping in for Mei on a live phone call with "

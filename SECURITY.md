@@ -21,9 +21,11 @@ shell with a microphone:
   consider an iptables/nftables egress allowlist for the solver/brain
   hosts — the default posture here is "brain on localhost/LAN, no
   inbound ports".
-- **Caller allowlist**: the watcher answers 1:1 DMs from known accounts;
-  use `JACK_ALLOWED_USERS` to pin exactly who can spawn a session.
-  Unknown callers are default-deny (no session, no token).
+- **Caller allowlist**: `JACK_ALLOWED_USERS` (comma-separated full user ids).
+  **Non-empty = default-deny**: only listed users can spawn a session, and
+  invites from anyone else are ignored. Empty = any 1:1 DM caller may start
+  a session (the watcher logs a loud warning when unconfigured). The watcher
+  only ever answers 1:1 DMs; group rooms are opt-in future work.
 - **The bridge is powerful**: `bridge/hermes_bridge.py` executes agent
   turns with full tool access on its host. Do NOT expose :8620 beyond
   your LAN/tailnet; there is no auth on the endpoint by design — it is a

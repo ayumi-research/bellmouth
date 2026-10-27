@@ -127,9 +127,10 @@ class CallMedia:
                 self._tts_busy = False
             log.info("pumped %d bytes -> %d audio frames", len(pcm), n)
 
-    async def speak(self, text: str, voice: str = "emma") -> None:
-        """text -> Chatterbox wav -> PCM16 48k -> tts queue (blocking TTS in thread)."""
+    async def speak(self, text: str, voice: str | None = None) -> None:
+        """text -> TTS wav -> PCM16 48k -> tts queue (blocking TTS in thread)."""
         import aiohttp, tempfile, os as _os
+        voice = voice or _os.environ.get("JACK_TTS_VOICE", "emma")
         body = {"input": text, "voice": voice, "response_format": "wav"}
         url = _os.environ.get("JACK_TTS_URL", "http://localhost:8003/v1/audio/speech")
         async with aiohttp.ClientSession() as sess:
@@ -189,9 +190,9 @@ class CallMedia:
                 data = bytes(frame.frame.data)
                 if getattr(self, "_remote_channels", 1) == 2:
                     # stereo interleaved s16 -> mono (average L/R) before anything else
-                    import array as _arr2
-                    aa = _arr2.array("h", data[: len(data) // 2 * 2])
-                    data = array.array("h", ((aa[i] + aa[i + 1]) // 2 for i in range(0, len(aa) - 1, 2))).tobytes()
+                    import array as _arr
+                    aa = _arr.array("h", data[: len(data) // 2 * 2])
+                    data = _arr.array("h", ((aa[i] + aa[i + 1]) // 2 for i in range(0, len(aa) - 1, 2))).tobytes()
                 buf += data
                 chunk = rate // 2  # 0.5s at the TRUE rate (mono now)
                 while len(buf) >= chunk * 2:

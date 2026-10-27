@@ -128,6 +128,13 @@ Secrets live in `.env` (gitignored); `.env.example` ships keys without
 values. See [SECURITY.md](SECURITY.md) for the disclosure policy and the
 deployment hardening notes (container egress, ACLs, token scoping).
 
+## Credits
+
+The jack stands on other people's shoulders — see [ATTRIBUTIONS.md](ATTRIBUTIONS.md)
+for the full list: dependencies and their authors, the MatrixRTC protocol
+work, and the reference implementations we verified against (no copied
+code, credited anyway).
+
 ## License
 
 Apache-2.0 — see [LICENSE](LICENSE).

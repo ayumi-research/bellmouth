@@ -26,7 +26,7 @@ shell with a microphone:
   refuses all invites; set the variable to exactly the users who may spawn
   sessions. The watcher also only ever answers 1:1 DMs; group rooms are
   opt-in future work.
-- **The bridge is powerful**: `bridge/hermes_bridge.py` executes agent
+- **The bridge is powerful**: `bridge/agent_bridge.py` executes agent
   turns with full tool access on its host. Do NOT expose :8620 beyond
   your LAN/tailnet; there is no auth on the endpoint by design — it is a
   loopback-class service. Put it behind an ACL (Tailscale, firewall) if

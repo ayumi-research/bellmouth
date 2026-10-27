@@ -50,7 +50,7 @@ class TestExtractTask:
 
 class TestHeuristic:
     def test_time_question(self):
-        assert heuristic_is_task("Hey Mei, what time is it on the Mac?")
+        assert heuristic_is_task("Hey, what time is it on the server?")
 
     def test_date_question(self):
         assert heuristic_is_task("what's the date today?")
@@ -74,16 +74,16 @@ class TestHeuristic:
 class TestEnvelope:
     def test_last_n_turns_and_roles(self):
         history = [
-            {"role": "system", "content": "You are Mei."},
+            {"role": "system", "content": "You are the agent."},
             {"role": "user", "content": "hi"},
             {"role": "assistant", "content": "hey! [TASK: old thing]"},
             {"role": "user", "content": "what time is it?"},
         ]
         env = build_context_envelope(history, turns=3)
         assert "Caller: hi" in env
-        assert "Mei: hey!" in env
+        assert "Agent: hey!" in env
         assert "[TASK" not in env  # tags never leak into the envelope
-        assert "You are Mei" not in env
+        assert "You are the agent" not in env
 
     def test_empty_history(self):
         assert build_context_envelope([]) == ""
@@ -91,7 +91,7 @@ class TestEnvelope:
 
 class TestPrompt:
     def test_prompt_contains_task_and_envelope(self):
-        p = build_task_prompt("what time is it", "Caller: hi\nMei: hello")
+        p = build_task_prompt("what time is it", "Caller: hi\nAgent: hello")
         assert "what time is it" in p
         assert "Caller: hi" in p
         assert "spoken" in p.lower()

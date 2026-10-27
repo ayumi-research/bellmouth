@@ -46,7 +46,7 @@ Element-Call-capable RTC stack works.
 - **Two brains, one phone call.** A small local LLM handles the chat at
   ~1-2s latency; anything that needs *real* tools escalates to a full
   agent session (the bridge) whose verified answer is spoken when it lands.
-  Or set `JACK_ROUTE=hermes` and let the full agent carry every turn
+  Or set `JACK_ROUTE=bridge` and let the full agent carry every turn
   (warm-session turns measured at ~2s).
 - **Car-proof audio.** Adaptive VAD (rolling RMS percentile), barge-in
   (talk over the agent and it stops, listens, and transcribes the
@@ -80,7 +80,7 @@ Everything is env-driven (`.env` in the working directory) — see
 | Matrix account | the identity that rings and answers | your HS (admin-create it, mint token with `device_id` matching the crypto store) |
 | RTC stack | Synapse + livekit-server + lk-jwt | any Element-Call deployment |
 | Chat brain | any OpenAI-compatible endpoint (ollama, vLLM, …) | `OPENAI_COMPAT_*` |
-| Full agent | [`hermes-agent`](https://github.com/nousresearch/hermes-agent) via `bridge/hermes_bridge.py` | optional, Mac/laptop side |
+| Full agent | any agent behind HTTP — the bundled `bridge/agent_bridge.py` example talks to [`hermes-agent`](https://github.com/nousresearch/hermes-agent) (MIT) | optional, LAN host |
 | STT | faster-whisper (CPU int8 default, GPU turbo if you have VRAM) | bundled |
 | TTS | any `/v1/audio/speech` endpoint (Chatterbox recommended) | `JACK_TTS_*` |
 
@@ -90,7 +90,9 @@ Everything is env-driven (`.env` in the working directory) — see
 
 ## The bridge (full-brain escalation)
 
-`bridge/hermes_bridge.py` is a tiny Mac-side HTTP service:
+`bridge/agent_bridge.py` is a tiny LAN-host HTTP service (a worked example
+wrapping [Hermes Agent](https://github.com/nousresearch/hermes-agent) — fork it
+for your own brain; the contract is three endpoints):
 
 ```
 POST /task   {task, context[], session_id?} → {ok, reply, seconds, session}

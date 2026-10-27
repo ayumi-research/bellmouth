@@ -19,15 +19,19 @@ def test_element_shape_roundtrip():
     payloads = dict(ok._payloads(ROOM))
     content = payloads[e2ee_send.ELEMENT_KEY_TYPE]
 
-    # receiver-side extraction (the live-proven path)
+    # receiver-side extraction (the live-proven path); compat event carries the
+    # key in both modern (media_key) and legacy (keys) slots
     mks = e2ee_keys.extract_keys_from_content(content, ME)
-    assert len(mks) == 1
-    raw = base64.b64decode(mks[0]["key"] + "=" * (-len(mks[0]["key"]) % 4))
-    assert raw == ok.key
-    assert mks[0]["index"] == 0
+    assert len(mks) == 2
+    for mk in mks:
+        raw = base64.b64decode(mk["key"] + "=" * (-len(mk["key"]) % 4))
+        assert raw == ok.key
+        assert mk["index"] == 0
     # receiver identity derivation must land on our canonical livekit identity
     assert content["member"]["id"] == f"{ME}:{MY_DEV}"
     assert content["member"]["claimed_device_id"] == MY_DEV
+    assert content["member_id"] == f"{ME}:{MY_DEV}"
+    assert content["room_id"] == ROOM
 
 
 def test_standardized_shape_roundtrip():
@@ -36,6 +40,8 @@ def test_standardized_shape_roundtrip():
     payloads = dict(ok._payloads(ROOM))
     content = payloads[e2ee_send.STANDARD_KEY_TYPE]
 
+    # MSC4143: media_key SINGULAR, no keys list
+    assert "keys" not in content
     mks = e2ee_keys.extract_keys_from_content(content, ME)
     assert len(mks) == 1
     raw = base64.b64decode(mks[0]["key"] + "=" * (-len(mks[0]["key"]) % 4))

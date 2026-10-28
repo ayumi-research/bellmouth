@@ -30,8 +30,13 @@ Status legend: `[ ]` open, `[~]` partially done, `[x]` done.
 ## Open — features
 
 - [ ] Outbound calls: let the agent *place* a call to a user (ring, wait, talk)
+      — full feasibility + architecture study in `OUTBOUND-CALLS-ARCH.md`
+      (2026-10-28): MatrixRTC notification-profile route grades HIGH on the
+      pinned deployment; legacy-to-Element-X grades LOW; MVP is 6 gated tasks
 - [ ] Video: publish an avatar video track (pair with a renderer; effigy-style
-      VRM stage on a GPU host) — the three-repo "connector" story
+      VRM stage on a GPU host) — the three-repo "connector" story — design in
+      `docs/AVATAR-VIDEO-ARCH.md` (2026-10-28): reuse a three-vrm renderer with
+      restrained "presence" animation; canvas.captureStream → bridge media path
 - [ ] Voice presets: per-language TTS voice mapping beyond `JACK_TTS_VOICE`
 - [ ] Live interop CI: an optional job that runs a real call against a test
       homeserver (needs hosted Synapse+LiveKit in CI)

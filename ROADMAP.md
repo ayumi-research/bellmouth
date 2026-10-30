@@ -47,10 +47,13 @@ Status legend: `[ ]` open, `[~]` partially done, `[x]` done.
 
 ## Open — community
 
-- [ ] Scan issues/bugs/feature requests in the official Hermes repo
+- [~] Scan issues/bugs/feature requests in the official Hermes repo
       (nousresearch/hermes-agent) for anyone needing agent voice calls on
-      Matrix — where relevant, point them to bellmouth and offer the bridge
-      as the worked example; capture recurring asks back into the roadmap
+      Matrix — first pass done 2026-10-30: commented on #118570 (WhatsApp
+      voice calls, inbound-first — closest architectural fit) and #98218
+      (Voquill voice bridge) as @zltnxyz; watch both for replies. Also
+      flagged for our own testing: #140431 (voice fallback_chain drop),
+      #139106 (TTS interrupt leaves playback stuck).
 
 ## Open — packaging
 

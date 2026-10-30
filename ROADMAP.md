@@ -16,9 +16,12 @@ Status legend: `[ ]` open, `[~]` partially done, `[x]` done.
 
 ## Open — robustness
 
-- [ ] Strict sender_key verification: unknown sender devices currently fail open
-      (olm envelope authenticates the sender, but a device-store miss should
-      eventually trigger a keys_query instead of trusting the claim)
+- [x] Strict sender_key verification (2026-10-30): unknown sender devices no
+      longer fail open — the key event is stashed, a keys_query for the sender
+      is scheduled, and the event is re-verified once the device store fills;
+      still-unknown after the query is dropped (fail-closed). One inflight
+      query per sender covers all events stashed during it. Deployed to
+      /opt/jack and live.
 - [ ] Bridge authentication: the `/task` endpoint is unauthenticated by design
       (LAN-only); add a shared-token option for exposure beyond the LAN
 - [ ] Recording retention: sweep runs on write; consider a periodic janitor task

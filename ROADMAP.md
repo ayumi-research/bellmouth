@@ -60,3 +60,8 @@ Status legend: `[ ]` open, `[~]` partially done, `[x]` done.
 - [ ] Docs site / screenshots (the README architecture diagram deserves render)
 - [ ] Example systemd unit + docker-compose for one-command deployment
 - [ ] `pyproject.toml` + PyPI package (currently run-from-checkout)
+
+## Call UX fixes (found live 2026-11-02, office test call)
+- [ ] Spoken-length cap: agent answers >~400 chars → speak a tight summary, push full text to the call room (sink already posts there). Live evidence: 1916-char answer = 2m47s uninterrupted TTS (12:25:38→12:28:24).
+- [ ] Barge-in: caller speech should interrupt TTS playback (currently "busy True" gates the reader).
+- [ ] VAD recalibration after long playback: 3 caller utterances dropped as "endpoint without enough speech (noise only)" post-monologue → agent went silent till hangup. Log rms/floor on drops, adapt thr.

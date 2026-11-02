@@ -122,7 +122,7 @@ class OpenAICompatAdapter:
         self._history.append({"role": "user", "content": text})
         if len(self._history) > self.max_history + 1:
             self._history = [self._history[0]] + self._history[-(self.max_history):]
-        if self.route == "hermes" and self.task_bridge:
+        if self.route == "bridge" and self.task_bridge:
             # bridge mode: no small-brain turn at all, no picker — the full brain
             # answers every turn (async; result queued to TTS when it lands).
             t = asyncio.ensure_future(self._run_task_turn(text))
